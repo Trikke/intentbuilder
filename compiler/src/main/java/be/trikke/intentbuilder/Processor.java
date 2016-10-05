@@ -124,20 +124,28 @@ public class Processor extends AbstractProcessor {
 			String gotoKeyword = isActivity ? "goto" : "get";
 			MethodSpec.Builder gotoMethod = MethodSpec.methodBuilder(gotoKeyword + element.getSimpleName());
 			MethodSpec.Builder launchMethod = MethodSpec.methodBuilder("launch" + element.getSimpleName());
+			MethodSpec.Builder launchForResultMethod = MethodSpec.methodBuilder("launch" + element.getSimpleName() + "ForResult");
 			launchMethod.addParameter(Context.class, "context");
+			launchForResultMethod.addParameter(Activity.class, "activity");
+			launchForResultMethod.addParameter(int.class, "requestCode");
 			StringBuilder sb = new StringBuilder();
 			for (Element e : required) {
 				String paramName = getParamName(e);
 				gotoMethod.addParameter(TypeName.get(e.asType()), paramName);
 				launchMethod.addParameter(TypeName.get(e.asType()), paramName);
+				launchForResultMethod.addParameter(TypeName.get(e.asType()), paramName);
 				if (sb.length() > 0) sb.append(',');
 				sb.append(paramName);
 			}
 			gotoMethod.addModifiers(Modifier.PUBLIC, Modifier.STATIC).addStatement("return new $L($L)", name, sb.toString()).returns(className);
 			launchMethod.addModifiers(Modifier.PUBLIC, Modifier.STATIC).addStatement("new $L($L).launch(context)", name, sb.toString());
+			launchForResultMethod.addModifiers(Modifier.PUBLIC, Modifier.STATIC).addStatement("new $L($L).launchForResult(activity,requestCode)", name, sb.toString());
 			builder.addMethod(gotoMethod.build());
 			if (isActivity || isService) {
 				builder.addMethod(launchMethod.build());
+			}
+			if (isActivity) {
+				builder.addMethod(launchForResultMethod.build());
 			}
 		}
 
@@ -254,30 +262,40 @@ public class Processor extends AbstractProcessor {
 					.addStatement("intent.setClass(activity, $T.class)", TypeName.get(annotatedElement.asType()))
 					.addStatement("activity.startActivityForResult(intent, requestCode)");
 			builder.addMethod(launchForResultMethod.build());
+
+			MethodSpec.Builder justinjectMethod = MethodSpec.methodBuilder("inject")
+					.addModifiers(Modifier.PUBLIC, Modifier.STATIC)
+					.addParameter(TypeName.get(annotatedElement.asType()), "activity")
+					.addStatement("inject(activity.getIntent(), activity, false)");
+			builder.addMethod(justinjectMethod.build());
 		}
 
 		MethodSpec.Builder injectWithOptionalsMethod = MethodSpec.methodBuilder("inject")
 				.addModifiers(Modifier.PUBLIC, Modifier.STATIC)
 				.addParameter(Intent.class, "intent")
-				.addParameter(TypeName.get(annotatedElement.asType()), "activity")
-				.addStatement("inject(intent, activity, false)");
+				.addParameter(TypeName.get(annotatedElement.asType()), "component")
+				.addStatement("inject(intent, component, false)");
 		builder.addMethod(injectWithOptionalsMethod.build());
 
 		MethodSpec.Builder injectMethod = MethodSpec.methodBuilder("inject")
 				.addModifiers(Modifier.PUBLIC, Modifier.STATIC)
 				.addParameter(Intent.class, "intent")
-				.addParameter(TypeName.get(annotatedElement.asType()), "activity")
+				.addParameter(TypeName.get(annotatedElement.asType()), "component")
 				.addParameter(boolean.class, "writeDefaultValues")
-				.addStatement("$T extras = intent.getExtras()", Bundle.class);
+				.addStatement("$T extras = intent.getExtras()", Bundle.class)
+				.beginControlFlow("if(extras == null)")
+				.addStatement("// no need to actually inject anything")
+				.addStatement("return")
+				.endControlFlow();
 		for (Element e : all) {
 			String paramName = getParamName(e);
 			injectMethod.beginControlFlow("if (extras.containsKey($S))", paramName)
-					.addStatement("activity.$N = ($T) extras.get($S)", e.getSimpleName().toString(), e.asType(), paramName)
+					.addStatement("component.$N = ($T) extras.get($S)", e.getSimpleName().toString(), e.asType(), paramName)
 					.nextControlFlow("else if (writeDefaultValues)");
 			if (TypeName.get(e.asType()).isPrimitive()) {
-				injectMethod.addStatement("activity.$N = $L", e.getSimpleName().toString(), PrimitiveDefaults.getDefaultValue(TypeName.get(e.asType()))).endControlFlow();
+				injectMethod.addStatement("component.$N = $L", e.getSimpleName().toString(), PrimitiveDefaults.getDefaultValue(TypeName.get(e.asType()))).endControlFlow();
 			} else {
-				injectMethod.addStatement("activity.$N = null", e.getSimpleName().toString()).endControlFlow();
+				injectMethod.addStatement("component.$N = null", e.getSimpleName().toString()).endControlFlow();
 			}
 		}
 		builder.addMethod(injectMethod.build());
