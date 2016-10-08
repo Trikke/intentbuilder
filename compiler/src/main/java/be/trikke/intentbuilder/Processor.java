@@ -26,12 +26,16 @@ import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.Modifier;
 import javax.lang.model.element.PackageElement;
 import javax.lang.model.element.TypeElement;
+import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.Elements;
 import javax.lang.model.util.Types;
 import javax.tools.Diagnostic;
 
 public class Processor extends AbstractProcessor {
+
+	private static final String ACTIVITY_FULL_NAME = "android.app.Activity"; // All activities extend from this
+	private static final String SERVICE_FULL_NAME = "android.app.Service"; // All services extend from this
 
 	private static Processor instance;
 
@@ -105,14 +109,46 @@ public class Processor extends AbstractProcessor {
 		return ((PackageElement) e).getQualifiedName().toString();
 	}
 
+	private boolean isElementInstanceOfActivity(Element element) {
+		return isElementInstanceOfClass(element, ACTIVITY_FULL_NAME);
+	}
+
+	private boolean isElementInstanceOfService(Element element) {
+		return isElementInstanceOfClass(element, SERVICE_FULL_NAME);
+	}
+
+	private boolean isElementInstanceOfClass(Element element, String fullClassName) {
+		boolean ret = false;
+		if (element.getKind() == ElementKind.CLASS) {
+
+			TypeElement currentClass = (TypeElement) element;
+			while (true) {
+				TypeMirror superClassType = currentClass.getSuperclass();
+
+				/** Super class is an instance of {@link Object}, we have reach the end of inheritance */
+				if (superClassType.getKind() == TypeKind.NONE) {
+					break;
+				}
+
+				// Found the required class
+				if (superClassType.toString().equals(fullClassName)) {
+					ret = true;
+					break;
+				}
+
+				// Moving up in the inheritance tree
+				currentClass = (TypeElement) typeUtils.asElement(superClassType);
+			}
+		}
+
+		return ret;
+	}
+
 	private TypeSpec getNavigatorSpec(Set<? extends Element> generated) {
 		TypeSpec.Builder builder = TypeSpec.classBuilder("Flow").addModifiers(Modifier.PUBLIC, Modifier.FINAL);
 		for (Element element : generated) {
-			// TODO quick hack fix
-			// i don't know yet how to check the superclass of the the class represented by the Element, to
-			// know if it is an actual Activity or Service
-			boolean isActivity = element.getSimpleName().toString().toLowerCase().contains("activity");
-			boolean isService = element.getSimpleName().toString().toLowerCase().contains("service");
+			boolean isActivity = isElementInstanceOfActivity(element);
+			boolean isService = isElementInstanceOfService(element);
 
 			List<Element> required = new ArrayList<>();
 			List<Element> optional = new ArrayList<>();
@@ -153,11 +189,8 @@ public class Processor extends AbstractProcessor {
 	}
 
 	private TypeSpec getBuilderSpec(Element annotatedElement) {
-		// TODO quick hack fix
-		// i don't know yet how to check the superclass of the the class represented by the Element, to
-		// know if it is an actual Activity or Service
-		boolean isActivity = annotatedElement.getSimpleName().toString().toLowerCase().contains("activity");
-		boolean isService = annotatedElement.getSimpleName().toString().toLowerCase().contains("service");
+		boolean isActivity = isElementInstanceOfActivity(annotatedElement);
+		boolean isService = isElementInstanceOfService(annotatedElement);
 
 		List<Element> required = new ArrayList<>();
 		List<Element> optional = new ArrayList<>();
@@ -305,7 +338,7 @@ public class Processor extends AbstractProcessor {
 
 	private String getParamName(Element e) {
 		String extraValue = e.getAnnotation(Extra.class).value();
-		return extraValue != null && !extraValue.trim().isEmpty() ? extraValue : e.getSimpleName().toString();
+		return extraValue != null && extraValue.trim().length() > 0 ? extraValue : e.getSimpleName().toString();
 	}
 
 	private void getAnnotatedFields(Element annotatedElement, List<Element> required, List<Element> optional) {
