@@ -36,6 +36,7 @@ public class Processor extends AbstractProcessor {
 
 	private static final String ACTIVITY_FULL_NAME = "android.app.Activity"; // All activities extend from this
 	private static final String SERVICE_FULL_NAME = "android.app.Service"; // All services extend from this
+	private static final String BROADCASTRECEIVER_FULL_NAME = "android.content.BroadcastReceiver"; // All broadcastreceivers extend from this
 
 	private static Processor instance;
 
@@ -117,6 +118,10 @@ public class Processor extends AbstractProcessor {
 		return isElementInstanceOfClass(element, SERVICE_FULL_NAME);
 	}
 
+	private boolean isElementInstanceOfBroadcastReceiver(Element element) {
+		return isElementInstanceOfClass(element, BROADCASTRECEIVER_FULL_NAME);
+	}
+
 	private boolean isElementInstanceOfClass(Element element, String fullClassName) {
 		boolean ret = false;
 		if (element.getKind() == ElementKind.CLASS) {
@@ -149,6 +154,16 @@ public class Processor extends AbstractProcessor {
 		for (Element element : generated) {
 			boolean isActivity = isElementInstanceOfActivity(element);
 			boolean isService = isElementInstanceOfService(element);
+			boolean isBroadcastreceiver = isElementInstanceOfBroadcastReceiver(element);
+			String gotoKeyword = isActivity ? "goto" : "get";
+			String launchKeyword;
+			if (isActivity) {
+				launchKeyword = "launch";
+			} else if (isService) {
+				launchKeyword = "start";
+			} else {
+				launchKeyword = "send";
+			}
 
 			List<Element> required = new ArrayList<>();
 			List<Element> optional = new ArrayList<>();
@@ -157,27 +172,29 @@ public class Processor extends AbstractProcessor {
 
 			final String name = String.format("%sIntent", element.getSimpleName());
 			ClassName className = ClassName.get(getPackageName(element), name);
-			String gotoKeyword = isActivity ? "goto" : "get";
 			MethodSpec.Builder gotoMethod = MethodSpec.methodBuilder(gotoKeyword + element.getSimpleName());
-			MethodSpec.Builder launchMethod = MethodSpec.methodBuilder("launch" + element.getSimpleName());
-			MethodSpec.Builder launchForResultMethod = MethodSpec.methodBuilder("launch" + element.getSimpleName() + "ForResult");
-			launchMethod.addParameter(Context.class, "context");
-			launchForResultMethod.addParameter(Activity.class, "activity");
-			launchForResultMethod.addParameter(int.class, "requestCode");
-			StringBuilder sb = new StringBuilder();
+			MethodSpec.Builder launchMethod = MethodSpec.methodBuilder(launchKeyword + element.getSimpleName())
+					.addParameter(Context.class, "context")
+					.addModifiers(Modifier.PUBLIC, Modifier.STATIC);
+
+			MethodSpec.Builder launchForResultMethod = MethodSpec.methodBuilder("launch" + element.getSimpleName() + "ForResult")
+					.addParameter(Activity.class, "activity")
+					.addParameter(int.class, "requestCode");
+			StringBuilder launchParams = new StringBuilder();
 			for (Element e : required) {
 				String paramName = getParamName(e);
 				gotoMethod.addParameter(TypeName.get(e.asType()), paramName);
 				launchMethod.addParameter(TypeName.get(e.asType()), paramName);
 				launchForResultMethod.addParameter(TypeName.get(e.asType()), paramName);
-				if (sb.length() > 0) sb.append(',');
-				sb.append(paramName);
+				if (launchParams.length() > 0) launchParams.append(',');
+				launchParams.append(paramName);
 			}
-			gotoMethod.addModifiers(Modifier.PUBLIC, Modifier.STATIC).addStatement("return new $L($L)", name, sb.toString()).returns(className);
-			launchMethod.addModifiers(Modifier.PUBLIC, Modifier.STATIC).addStatement("new $L($L).launch(context)", name, sb.toString());
-			launchForResultMethod.addModifiers(Modifier.PUBLIC, Modifier.STATIC).addStatement("new $L($L).launchForResult(activity,requestCode)", name, sb.toString());
+			gotoMethod.addModifiers(Modifier.PUBLIC, Modifier.STATIC).addStatement("return new $L($L)", name, launchParams.toString()).returns(className);
+			launchMethod.addStatement("new $L($L)." + launchKeyword + "(context)", name, launchParams.toString());
+			launchForResultMethod.addModifiers(Modifier.PUBLIC, Modifier.STATIC)
+					.addStatement("new $L($L).launchForResult(activity,requestCode)", name, launchParams.toString());
 			builder.addMethod(gotoMethod.build());
-			if (isActivity || isService) {
+			if (isActivity || isService || isBroadcastreceiver) {
 				builder.addMethod(launchMethod.build());
 			}
 			if (isActivity) {
@@ -191,6 +208,7 @@ public class Processor extends AbstractProcessor {
 	private TypeSpec getBuilderSpec(Element annotatedElement) {
 		boolean isActivity = isElementInstanceOfActivity(annotatedElement);
 		boolean isService = isElementInstanceOfService(annotatedElement);
+		boolean isBroadcastreceiver = isElementInstanceOfBroadcastReceiver(annotatedElement);
 
 		List<Element> required = new ArrayList<>();
 		List<Element> optional = new ArrayList<>();
@@ -273,17 +291,19 @@ public class Processor extends AbstractProcessor {
 				.addStatement("return intent");
 		builder.addMethod(buildMethod.build());
 
-		if (isActivity || isService) {
-			MethodSpec.Builder launchMethod = MethodSpec.methodBuilder("launch")
-					.addModifiers(Modifier.PUBLIC)
-					.addParameter(Context.class, "context")
-					.addStatement("intent.setClass(context, $T.class)", TypeName.get(annotatedElement.asType()));
-
+		if (isActivity || isService || isBroadcastreceiver) {
+			MethodSpec.Builder launchMethod;
 			if (isActivity) {
+				launchMethod = MethodSpec.methodBuilder("launch").addStatement("intent.setClass(context, $T.class)", TypeName.get(annotatedElement.asType()));
 				launchMethod.addStatement("context.startActivity(intent)");
-			} else {
+			} else if (isService) {
+				launchMethod = MethodSpec.methodBuilder("start").addStatement("intent.setClass(context, $T.class)", TypeName.get(annotatedElement.asType()));
 				launchMethod.addStatement("context.startService(intent)");
+			} else {
+				launchMethod = MethodSpec.methodBuilder("send").addStatement("intent.setClass(context, $T.class)", TypeName.get(annotatedElement.asType()));
+				launchMethod.addStatement("context.sendBroadcast(intent)");
 			}
+			launchMethod.addModifiers(Modifier.PUBLIC).addParameter(Context.class, "context");
 			builder.addMethod(launchMethod.build());
 		}
 
@@ -326,7 +346,8 @@ public class Processor extends AbstractProcessor {
 					.addStatement("component.$N = ($T) extras.get($S)", e.getSimpleName().toString(), e.asType(), paramName)
 					.nextControlFlow("else if (writeDefaultValues)");
 			if (TypeName.get(e.asType()).isPrimitive()) {
-				injectMethod.addStatement("component.$N = $L", e.getSimpleName().toString(), PrimitiveDefaults.getDefaultValue(TypeName.get(e.asType()))).endControlFlow();
+				injectMethod.addStatement("component.$N = $L", e.getSimpleName().toString(), PrimitiveDefaults.getDefaultValue(TypeName.get(e.asType())))
+						.endControlFlow();
 			} else {
 				injectMethod.addStatement("component.$N = null", e.getSimpleName().toString()).endControlFlow();
 			}
@@ -337,18 +358,23 @@ public class Processor extends AbstractProcessor {
 	}
 
 	private String getParamName(Element e) {
-		String extraValue = e.getAnnotation(Extra.class).value();
+		String extraValue = null;
+		if (e.getAnnotation(Extra.class) != null) {
+			extraValue = e.getAnnotation(Extra.class).value();
+		}
+		if (e.getAnnotation(ExtraOptional.class) != null) {
+			extraValue = e.getAnnotation(ExtraOptional.class).value();
+		}
 		return extraValue != null && extraValue.trim().length() > 0 ? extraValue : e.getSimpleName().toString();
 	}
 
 	private void getAnnotatedFields(Element annotatedElement, List<Element> required, List<Element> optional) {
 		for (Element e : annotatedElement.getEnclosedElements()) {
 			if (e.getAnnotation(Extra.class) != null) {
-				if (hasAnnotation(e, "Nullable")) {
-					optional.add(e);
-				} else {
-					required.add(e);
-				}
+				required.add(e);
+			}
+			if (e.getAnnotation(ExtraOptional.class) != null) {
+				optional.add(e);
 			}
 		}
 

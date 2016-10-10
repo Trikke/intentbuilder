@@ -1,36 +1,36 @@
 package be.trikke.intentbuilder.sample;
 
 import android.os.Bundle;
-import android.support.annotation.Nullable;
 import android.support.v7.app.AppCompatActivity;
 import android.widget.TextView;
 import be.trikke.intentbuilder.BuildIntent;
 import be.trikke.intentbuilder.Extra;
+import be.trikke.intentbuilder.ExtraOptional;
 
 @BuildIntent public class DetailActivity extends AppCompatActivity {
 
-	@Extra String one;
+	@Extra String requiredString;
 
-	@Extra String two;
+	@Extra boolean requiredBoolean;
 
-	@Extra @Nullable String three;
+	@ExtraOptional String optionalString;
 
-	@Extra @Nullable int four;
+	@ExtraOptional int optionalInteger;
 
-	@Extra("five") @Nullable String mFive;
+	@ExtraOptional("coolName") String optionalStringDiffName;
 
-	@Extra @Nullable boolean six;
+	@ExtraOptional boolean optionalBoolean;
 
 	@Override public void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
 		DetailActivityIntent.inject(getIntent(), this);
-		setContentView(be.trikke.intentbuilder.sample.R.layout.activity_detail);
+		setContentView(R.layout.activity_detail);
 
-		((TextView) findViewById(be.trikke.intentbuilder.sample.R.id.one)).setText(one);
-		((TextView) findViewById(be.trikke.intentbuilder.sample.R.id.two)).setText(two);
-		((TextView) findViewById(be.trikke.intentbuilder.sample.R.id.three)).setText(three);
-		((TextView) findViewById(be.trikke.intentbuilder.sample.R.id.four)).setText("integer > " + four);
-		((TextView) findViewById(be.trikke.intentbuilder.sample.R.id.five)).setText(mFive);
-		((TextView) findViewById(be.trikke.intentbuilder.sample.R.id.four)).setText("boolean > " + six);
+		((TextView) findViewById(R.id.one)).setText("Required String: " + requiredString);
+		((TextView) findViewById(R.id.two)).setText("Required Boolean: " + requiredBoolean);
+		((TextView) findViewById(R.id.three)).setText("Optional String: " + optionalString);
+		((TextView) findViewById(R.id.four)).setText("Optional Integer:  " + optionalInteger);
+		((TextView) findViewById(R.id.five)).setText("Optional String (coolName): " + optionalStringDiffName);
+		((TextView) findViewById(R.id.four)).setText("Optional Boolean: " + optionalBoolean);
 	}
 }

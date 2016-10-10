@@ -7,6 +7,12 @@
 		android:label="@string/app_name"
 		android:theme="@style/AppTheme">
 
+		<receiver android:name="MyBroadcastReceiver">
+			<intent-filter>
+				<action android:name="muhFilter" />
+			</intent-filter>
+		</receiver>
+
 		<activity
 			android:name=".MainActivity"
 			android:label="@string/app_name">
