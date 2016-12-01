@@ -177,28 +177,35 @@ public class Processor extends AbstractProcessor {
 					.addParameter(Context.class, "context")
 					.addModifiers(Modifier.PUBLIC, Modifier.STATIC);
 
-			MethodSpec.Builder launchForResultMethod = MethodSpec.methodBuilder("launch" + element.getSimpleName() + "ForResult")
+			MethodSpec.Builder launchWithActivityForResultMethod = MethodSpec.methodBuilder("launch" + element.getSimpleName() + "ForResult")
 					.addParameter(Activity.class, "activity")
+					.addParameter(int.class, "requestCode");
+			MethodSpec.Builder launchWithFragmentForResultMethod = MethodSpec.methodBuilder("launch" + element.getSimpleName() + "ForResult")
+					.addParameter(ClassName.get("android.support.v4.app", "Fragment"), "fragment")
 					.addParameter(int.class, "requestCode");
 			StringBuilder launchParams = new StringBuilder();
 			for (Element e : required) {
 				String paramName = getParamName(e);
 				gotoMethod.addParameter(TypeName.get(e.asType()), paramName);
 				launchMethod.addParameter(TypeName.get(e.asType()), paramName);
-				launchForResultMethod.addParameter(TypeName.get(e.asType()), paramName);
+				launchWithActivityForResultMethod.addParameter(TypeName.get(e.asType()), paramName);
+				launchWithFragmentForResultMethod.addParameter(TypeName.get(e.asType()), paramName);
 				if (launchParams.length() > 0) launchParams.append(',');
 				launchParams.append(paramName);
 			}
 			gotoMethod.addModifiers(Modifier.PUBLIC, Modifier.STATIC).addStatement("return new $L($L)", name, launchParams.toString()).returns(className);
 			launchMethod.addStatement("new $L($L)." + launchKeyword + "(context)", name, launchParams.toString());
-			launchForResultMethod.addModifiers(Modifier.PUBLIC, Modifier.STATIC)
+			launchWithActivityForResultMethod.addModifiers(Modifier.PUBLIC, Modifier.STATIC)
 					.addStatement("new $L($L).launchForResult(activity,requestCode)", name, launchParams.toString());
+			launchWithFragmentForResultMethod.addModifiers(Modifier.PUBLIC, Modifier.STATIC)
+					.addStatement("new $L($L).launchForResult(fragment,requestCode)", name, launchParams.toString());
 			builder.addMethod(gotoMethod.build());
 			if (isActivity || isService || isBroadcastreceiver) {
 				builder.addMethod(launchMethod.build());
 			}
 			if (isActivity) {
-				builder.addMethod(launchForResultMethod.build());
+				builder.addMethod(launchWithActivityForResultMethod.build());
+				builder.addMethod(launchWithFragmentForResultMethod.build());
 			}
 		}
 
@@ -315,6 +322,14 @@ public class Processor extends AbstractProcessor {
 					.addStatement("intent.setClass(activity, $T.class)", TypeName.get(annotatedElement.asType()))
 					.addStatement("activity.startActivityForResult(intent, requestCode)");
 			builder.addMethod(launchForResultMethod.build());
+
+			MethodSpec.Builder launchForResultWithFragmentMethod = MethodSpec.methodBuilder("launchForResult")
+					.addModifiers(Modifier.PUBLIC)
+					.addParameter(ClassName.get("android.support.v4.app", "Fragment"), "fragment")
+					.addParameter(int.class, "requestCode")
+					.addStatement("intent.setClass(fragment.getActivity(), $T.class)", TypeName.get(annotatedElement.asType()))
+					.addStatement("fragment.startActivityForResult(intent, requestCode)");
+			builder.addMethod(launchForResultWithFragmentMethod.build());
 
 			MethodSpec.Builder justinjectMethod = MethodSpec.methodBuilder("inject")
 					.addModifiers(Modifier.PUBLIC, Modifier.STATIC)
