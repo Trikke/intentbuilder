@@ -1,4 +1,4 @@
-#IntentBuilder
+##IntentBuilder
 IntentBuilder is a type safe way of creating intents and populating them with extras. Use them with your Activities, Services, Broadcastreceivers and other components.
 
 ##Installation
@@ -15,8 +15,8 @@ buildscript {
 apply plugin: 'com.neenbedankt.android-apt'
 
 dependencies {
-    compile 'be.trikke:intentbuilder-api:1.1.1'
-    apt 'be.trikke:intentbuilder-compiler:1.1.1'
+    compile 'be.trikke:intentbuilder-api:1.1.2'
+    apt 'be.trikke:intentbuilder-compiler:1.1.2'
 }
 ```
 

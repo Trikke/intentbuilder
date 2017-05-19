@@ -1,4 +1,4 @@
-#IntentBuilder
+##IntentBuilder
 IntentBuilder is a type safe way of creating intents and populating them with extras. Use them with your Activities, Services, Broadcastreceivers and other components.
 
 ##Installation

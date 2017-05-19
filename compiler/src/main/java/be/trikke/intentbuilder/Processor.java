@@ -320,6 +320,7 @@ public class Processor extends AbstractProcessor {
 					.addParameter(Activity.class, "activity")
 					.addParameter(int.class, "requestCode")
 					.addStatement("intent.setClass(activity, $T.class)", TypeName.get(annotatedElement.asType()))
+					.addStatement("intent.putExtra(\"requestcode\", requestCode)")
 					.addStatement("activity.startActivityForResult(intent, requestCode)");
 			builder.addMethod(launchForResultMethod.build());
 
@@ -328,6 +329,7 @@ public class Processor extends AbstractProcessor {
 					.addParameter(ClassName.get("android.support.v4.app", "Fragment"), "fragment")
 					.addParameter(int.class, "requestCode")
 					.addStatement("intent.setClass(fragment.getActivity(), $T.class)", TypeName.get(annotatedElement.asType()))
+					.addStatement("intent.putExtra(\"requestcode\", requestCode)")
 					.addStatement("fragment.startActivityForResult(intent, requestCode)");
 			builder.addMethod(launchForResultWithFragmentMethod.build());
 
