@@ -174,15 +174,15 @@ public class Processor extends AbstractProcessor {
 			ClassName className = ClassName.get(getPackageName(element), name);
 			MethodSpec.Builder gotoMethod = MethodSpec.methodBuilder(gotoKeyword + element.getSimpleName());
 			MethodSpec.Builder launchMethod = MethodSpec.methodBuilder(launchKeyword + element.getSimpleName())
-					.addParameter(Context.class, "context")
-					.addModifiers(Modifier.PUBLIC, Modifier.STATIC);
+			                                            .addParameter(Context.class, "context")
+			                                            .addModifiers(Modifier.PUBLIC, Modifier.STATIC);
 
 			MethodSpec.Builder launchWithActivityForResultMethod = MethodSpec.methodBuilder("launch" + element.getSimpleName() + "ForResult")
-					.addParameter(Activity.class, "activity")
-					.addParameter(int.class, "requestCode");
+			                                                                 .addParameter(Activity.class, "activity")
+			                                                                 .addParameter(int.class, "requestCode");
 			MethodSpec.Builder launchWithFragmentForResultMethod = MethodSpec.methodBuilder("launch" + element.getSimpleName() + "ForResult")
-					.addParameter(ClassName.get("android.support.v4.app", "Fragment"), "fragment")
-					.addParameter(int.class, "requestCode");
+			                                                                 .addParameter(ClassName.get("android.support.v4.app", "Fragment"), "fragment")
+			                                                                 .addParameter(int.class, "requestCode");
 			StringBuilder launchParams = new StringBuilder();
 			for (Element e : required) {
 				String paramName = getParamName(e);
@@ -196,9 +196,9 @@ public class Processor extends AbstractProcessor {
 			gotoMethod.addModifiers(Modifier.PUBLIC, Modifier.STATIC).addStatement("return new $L($L)", name, launchParams.toString()).returns(className);
 			launchMethod.addStatement("new $L($L)." + launchKeyword + "(context)", name, launchParams.toString());
 			launchWithActivityForResultMethod.addModifiers(Modifier.PUBLIC, Modifier.STATIC)
-					.addStatement("new $L($L).launchForResult(activity,requestCode)", name, launchParams.toString());
+			                                 .addStatement("new $L($L).launchForResult(activity,requestCode)", name, launchParams.toString());
 			launchWithFragmentForResultMethod.addModifiers(Modifier.PUBLIC, Modifier.STATIC)
-					.addStatement("new $L($L).launchForResult(fragment,requestCode)", name, launchParams.toString());
+			                                 .addStatement("new $L($L).launchForResult(fragment,requestCode)", name, launchParams.toString());
 			builder.addMethod(gotoMethod.build());
 			if (isActivity || isService || isBroadcastreceiver) {
 				builder.addMethod(launchMethod.build());
@@ -238,70 +238,81 @@ public class Processor extends AbstractProcessor {
 		builder.addMethod(constructor.build());
 
 		MethodSpec.Builder actionMethod = MethodSpec.methodBuilder("action")
-				.addModifiers(Modifier.PUBLIC)
-				.addParameter(String.class, "action")
-				.addStatement("intent.setAction(action)")
-				.addStatement("return this")
-				.returns(ClassName.get(getPackageName(annotatedElement), name));
+		                                            .addModifiers(Modifier.PUBLIC)
+		                                            .addParameter(String.class, "action")
+		                                            .addStatement("intent.setAction(action)")
+		                                            .addStatement("return this")
+		                                            .returns(ClassName.get(getPackageName(annotatedElement), name));
 		builder.addMethod(actionMethod.build());
 
 		MethodSpec.Builder dataMethod = MethodSpec.methodBuilder("data")
-				.addModifiers(Modifier.PUBLIC)
-				.addParameter(Uri.class, "data")
-				.addStatement("intent.setData(data)")
-				.addStatement("return this")
-				.returns(ClassName.get(getPackageName(annotatedElement), name));
+		                                          .addModifiers(Modifier.PUBLIC)
+		                                          .addParameter(Uri.class, "data")
+		                                          .addStatement("intent.setData(data)")
+		                                          .addStatement("return this")
+		                                          .returns(ClassName.get(getPackageName(annotatedElement), name));
 		builder.addMethod(dataMethod.build());
 
 		MethodSpec.Builder typeMethod = MethodSpec.methodBuilder("type")
-				.addModifiers(Modifier.PUBLIC)
-				.addParameter(String.class, "type")
-				.addStatement("intent.setType(type)")
-				.addStatement("return this")
-				.returns(ClassName.get(getPackageName(annotatedElement), name));
+		                                          .addModifiers(Modifier.PUBLIC)
+		                                          .addParameter(String.class, "type")
+		                                          .addStatement("intent.setType(type)")
+		                                          .addStatement("return this")
+		                                          .returns(ClassName.get(getPackageName(annotatedElement), name));
 		builder.addMethod(typeMethod.build());
 
 		MethodSpec.Builder flagMethod = MethodSpec.methodBuilder("flag")
-				.addModifiers(Modifier.PUBLIC)
-				.addParameter(int.class, "flag")
-				.addStatement("return flags(flag)")
-				.returns(ClassName.get(getPackageName(annotatedElement), name));
+		                                          .addModifiers(Modifier.PUBLIC)
+		                                          .addParameter(int.class, "flag")
+		                                          .addStatement("return flags(flag)")
+		                                          .returns(ClassName.get(getPackageName(annotatedElement), name));
 		builder.addMethod(flagMethod.build());
 
 		MethodSpec.Builder flagsMethod = MethodSpec.methodBuilder("flags")
-				.addModifiers(Modifier.PUBLIC)
-				.varargs(true)
-				.addParameter(int[].class, "flags")
-				.beginControlFlow("for (int flag : flags)")
-				.addStatement("intent.addFlags(flag)")
-				.endControlFlow()
-				.addStatement("return this")
-				.returns(ClassName.get(getPackageName(annotatedElement), name));
+		                                           .addModifiers(Modifier.PUBLIC)
+		                                           .varargs(true)
+		                                           .addParameter(int[].class, "flags")
+		                                           .beginControlFlow("for (int flag : flags)")
+		                                           .addStatement("intent.addFlags(flag)")
+		                                           .endControlFlow()
+		                                           .addStatement("return this")
+		                                           .returns(ClassName.get(getPackageName(annotatedElement), name));
 		builder.addMethod(flagsMethod.build());
 
 		for (Element e : optional) {
 			String paramName = getParamName(e);
 			builder.addMethod(MethodSpec.methodBuilder(paramName)
-					.addModifiers(Modifier.PUBLIC)
-					.addParameter(TypeName.get(e.asType()), paramName)
-					.addStatement("intent.putExtra($S, $N)", paramName, paramName)
-					.addStatement("return this")
-					.returns(ClassName.get(getPackageName(annotatedElement), name))
-					.build());
+			                            .addModifiers(Modifier.PUBLIC)
+			                            .addParameter(TypeName.get(e.asType()), paramName)
+			                            .addStatement("intent.putExtra($S, $N)", paramName, paramName)
+			                            .addStatement("return this")
+			                            .returns(ClassName.get(getPackageName(annotatedElement), name))
+			                            .build());
+		}
+		//public Intent putExtra(String name, boolean value)
+		MethodSpec.Builder putExtraMethod;
+
+		for (TypeName type : PrimitiveDefaults.getAll()) {
+			putExtraMethod = MethodSpec.methodBuilder("putExtra")
+			                           .addModifiers(Modifier.PUBLIC)
+			                           .addParameter(String.class, "name")
+			                           .addParameter(type, "value")
+			                           .addStatement("intent.putExtra(name, value)")
+			                           .addStatement("return this")
+			                           .returns(ClassName.get(getPackageName(annotatedElement), name));
+			builder.addMethod(putExtraMethod.build());
 		}
 
-		MethodSpec.Builder getExtrasMethod = MethodSpec.methodBuilder("getExtras")
-		                                           .addModifiers(Modifier.PUBLIC)
-		                                           .returns(Bundle.class)
-		                                           .addStatement("return intent.getExtras()");
+		MethodSpec.Builder getExtrasMethod =
+				MethodSpec.methodBuilder("getExtras").addModifiers(Modifier.PUBLIC).returns(Bundle.class).addStatement("return intent.getExtras()");
 		builder.addMethod(getExtrasMethod.build());
 
 		MethodSpec.Builder buildMethod = MethodSpec.methodBuilder("build")
-				.addModifiers(Modifier.PUBLIC)
-				.addParameter(Context.class, "context")
-				.addStatement("intent.setClass(context, $T.class)", TypeName.get(annotatedElement.asType()))
-				.returns(Intent.class)
-				.addStatement("return intent");
+		                                           .addModifiers(Modifier.PUBLIC)
+		                                           .addParameter(Context.class, "context")
+		                                           .addStatement("intent.setClass(context, $T.class)", TypeName.get(annotatedElement.asType()))
+		                                           .returns(Intent.class)
+		                                           .addStatement("return intent");
 		builder.addMethod(buildMethod.build());
 
 		if (isActivity || isService || isBroadcastreceiver) {
@@ -322,55 +333,55 @@ public class Processor extends AbstractProcessor {
 
 		if (isActivity) {
 			MethodSpec.Builder launchForResultMethod = MethodSpec.methodBuilder("launchForResult")
-					.addModifiers(Modifier.PUBLIC)
-					.addParameter(Activity.class, "activity")
-					.addParameter(int.class, "requestCode")
-					.addStatement("intent.setClass(activity, $T.class)", TypeName.get(annotatedElement.asType()))
-					.addStatement("intent.putExtra(\"requestcode\", requestCode)")
-					.addStatement("activity.startActivityForResult(intent, requestCode)");
+			                                                     .addModifiers(Modifier.PUBLIC)
+			                                                     .addParameter(Activity.class, "activity")
+			                                                     .addParameter(int.class, "requestCode")
+			                                                     .addStatement("intent.setClass(activity, $T.class)", TypeName.get(annotatedElement.asType()))
+			                                                     .addStatement("intent.putExtra(\"requestcode\", requestCode)")
+			                                                     .addStatement("activity.startActivityForResult(intent, requestCode)");
 			builder.addMethod(launchForResultMethod.build());
 
 			MethodSpec.Builder launchForResultWithFragmentMethod = MethodSpec.methodBuilder("launchForResult")
-					.addModifiers(Modifier.PUBLIC)
-					.addParameter(ClassName.get("android.support.v4.app", "Fragment"), "fragment")
-					.addParameter(int.class, "requestCode")
-					.addStatement("intent.setClass(fragment.getActivity(), $T.class)", TypeName.get(annotatedElement.asType()))
-					.addStatement("intent.putExtra(\"requestcode\", requestCode)")
-					.addStatement("fragment.startActivityForResult(intent, requestCode)");
+			                                                                 .addModifiers(Modifier.PUBLIC)
+			                                                                 .addParameter(ClassName.get("android.support.v4.app", "Fragment"), "fragment")
+			                                                                 .addParameter(int.class, "requestCode")
+			                                                                 .addStatement("intent.setClass(fragment.getActivity(), $T.class)",
+					                                                                 TypeName.get(annotatedElement.asType())).addStatement("intent.putExtra(\"requestcode\", requestCode)")
+			                                                                 .addStatement("fragment.startActivityForResult(intent, requestCode)");
 			builder.addMethod(launchForResultWithFragmentMethod.build());
 
 			MethodSpec.Builder justinjectMethod = MethodSpec.methodBuilder("inject")
-					.addModifiers(Modifier.PUBLIC, Modifier.STATIC)
-					.addParameter(TypeName.get(annotatedElement.asType()), "activity")
-					.addStatement("inject(activity.getIntent(), activity, false)");
+			                                                .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
+			                                                .addParameter(TypeName.get(annotatedElement.asType()), "activity")
+			                                                .addStatement("inject(activity.getIntent(), activity, false)");
 			builder.addMethod(justinjectMethod.build());
 		}
 
 		MethodSpec.Builder injectWithOptionalsMethod = MethodSpec.methodBuilder("inject")
-				.addModifiers(Modifier.PUBLIC, Modifier.STATIC)
-				.addParameter(Intent.class, "intent")
-				.addParameter(TypeName.get(annotatedElement.asType()), "component")
-				.addStatement("inject(intent, component, false)");
+		                                                         .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
+		                                                         .addParameter(Intent.class, "intent")
+		                                                         .addParameter(TypeName.get(annotatedElement.asType()), "component")
+		                                                         .addStatement("inject(intent, component, false)");
 		builder.addMethod(injectWithOptionalsMethod.build());
 
 		MethodSpec.Builder injectMethod = MethodSpec.methodBuilder("inject")
-				.addModifiers(Modifier.PUBLIC, Modifier.STATIC)
-				.addParameter(Intent.class, "intent")
-				.addParameter(TypeName.get(annotatedElement.asType()), "component")
-				.addParameter(boolean.class, "writeDefaultValues")
-				.addStatement("$T extras = intent.getExtras()", Bundle.class)
-				.beginControlFlow("if(extras == null)")
-				.addStatement("// no need to actually inject anything")
-				.addStatement("return")
-				.endControlFlow();
+		                                            .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
+		                                            .addParameter(Intent.class, "intent")
+		                                            .addParameter(TypeName.get(annotatedElement.asType()), "component")
+		                                            .addParameter(boolean.class, "writeDefaultValues")
+		                                            .addStatement("$T extras = intent.getExtras()", Bundle.class)
+		                                            .beginControlFlow("if(extras == null)")
+		                                            .addStatement("// no need to actually inject anything")
+		                                            .addStatement("return")
+		                                            .endControlFlow();
 		for (Element e : all) {
 			String paramName = getParamName(e);
 			injectMethod.beginControlFlow("if (extras.containsKey($S))", paramName)
-					.addStatement("component.$N = ($T) extras.get($S)", e.getSimpleName().toString(), e.asType(), paramName)
-					.nextControlFlow("else if (writeDefaultValues)");
+			            .addStatement("component.$N = ($T) extras.get($S)", e.getSimpleName().toString(), e.asType(), paramName)
+			            .nextControlFlow("else if (writeDefaultValues)");
 			if (TypeName.get(e.asType()).isPrimitive()) {
 				injectMethod.addStatement("component.$N = $L", e.getSimpleName().toString(), PrimitiveDefaults.getDefaultValue(TypeName.get(e.asType())))
-						.endControlFlow();
+				            .endControlFlow();
 			} else {
 				injectMethod.addStatement("component.$N = null", e.getSimpleName().toString()).endControlFlow();
 			}

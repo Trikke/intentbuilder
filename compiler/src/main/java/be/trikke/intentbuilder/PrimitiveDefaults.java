@@ -1,6 +1,8 @@
 package be.trikke.intentbuilder;
 
 import com.squareup.javapoet.TypeName;
+import java.util.ArrayList;
+import java.util.List;
 
 public class PrimitiveDefaults {
 	// These gets initialized to their default values
@@ -11,6 +13,19 @@ public class PrimitiveDefaults {
 	private static long DEFAULT_LONG;
 	private static float DEFAULT_FLOAT;
 	private static double DEFAULT_DOUBLE;
+	
+	public static List<TypeName> getAll() {
+		ArrayList<TypeName> list = new ArrayList<>();
+		list.add(TypeName.BOOLEAN);
+		list.add(TypeName.BYTE);
+		list.add(TypeName.CHAR);
+		list.add(TypeName.DOUBLE);
+		list.add(TypeName.FLOAT);
+		list.add(TypeName.INT);
+		list.add(TypeName.LONG);
+		list.add(TypeName.SHORT);
+		return list;
+	}
 
 	public static Object getDefaultValue(TypeName clazz) {
 		if (clazz.equals(TypeName.BOOLEAN)) {
