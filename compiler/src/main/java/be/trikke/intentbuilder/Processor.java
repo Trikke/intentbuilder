@@ -290,6 +290,12 @@ public class Processor extends AbstractProcessor {
 					.build());
 		}
 
+		MethodSpec.Builder getExtrasMethod = MethodSpec.methodBuilder("getExtras")
+		                                           .addModifiers(Modifier.PUBLIC)
+		                                           .returns(Bundle.class)
+		                                           .addStatement("return intent.getExtras()");
+		builder.addMethod(getExtrasMethod.build());
+
 		MethodSpec.Builder buildMethod = MethodSpec.methodBuilder("build")
 				.addModifiers(Modifier.PUBLIC)
 				.addParameter(Context.class, "context")
