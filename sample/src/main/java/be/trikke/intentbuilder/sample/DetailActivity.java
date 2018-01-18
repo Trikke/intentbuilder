@@ -4,10 +4,17 @@ import android.os.Bundle;
 import android.support.v7.app.AppCompatActivity;
 import android.widget.TextView;
 import be.trikke.intentbuilder.BuildIntent;
+import be.trikke.intentbuilder.BuildIntentUrl;
 import be.trikke.intentbuilder.Extra;
 import be.trikke.intentbuilder.ExtraOptional;
+import be.trikke.intentbuilder.UrlPath;
 
-@BuildIntent public class DetailActivity extends AppCompatActivity {
+@BuildIntentUrl(value = {
+		@UrlPath(name = "DETAILS",url = "test://parameters?requiredString={string}&requiredBoolean={boolean}"),
+		@UrlPath(name = "MORE",url = "test://more"),
+		@UrlPath(name = "STUFF",url = "test://stuff"),
+})
+public class DetailActivity extends AppCompatActivity {
 
 	@Extra String requiredString;
 

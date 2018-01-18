@@ -6,7 +6,7 @@ import android.support.v7.app.AppCompatActivity;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
-import be.trikke.intentbuilder.Flow;
+import be.trikke.intentbuilder.Navigate;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -17,12 +17,15 @@ public class MainActivity extends AppCompatActivity {
 		Button goToDetail = (Button) findViewById(R.id.go_to_detail);
 		goToDetail.setOnClickListener(new View.OnClickListener() {
 			@Override public void onClick(View v) {
-				Flow.gotoDetailActivity("i'm a required String", true)
-						.optionalString("i'm just optional")
-						.coolName("Trikke")
-						.optionalBoolean(true)
-						.flag(Intent.FLAG_ACTIVITY_CLEAR_TOP)
-						.launch(MainActivity.this);
+				Navigate.gotoDetails("i'm a required String", true)
+				        .optionalString("i'm just optional")
+				        .coolName("Trikke")
+				        .optionalBoolean(true)
+				        .flag(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+				        .launch(MainActivity.this);
+
+				//Navigate.launchDetails(MainActivity.this, "required", false);
+				//Navigate.launch(MainActivity.this, "test://details");
 			}
 		});
 
@@ -31,7 +34,7 @@ public class MainActivity extends AppCompatActivity {
 			@Override public void onClick(View view) {
 				EditText editText = (EditText) findViewById(R.id.toast_message);
 				String message = editText.getText().length() > 0 ? editText.getText().toString() : "Just a toast message";
-				Flow.getMyBroadcastReceiver(message).action("muhFilter").send(MainActivity.this);
+				Navigate.getMyBroadcastReceiver(message).action("muhFilter").send(MainActivity.this);
 			}
 		});
 	}

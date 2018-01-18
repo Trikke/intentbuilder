@@ -6,13 +6,21 @@ import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
 import com.squareup.javapoet.ClassName;
+import com.squareup.javapoet.CodeBlock;
+import com.squareup.javapoet.FieldSpec;
 import com.squareup.javapoet.JavaFile;
 import com.squareup.javapoet.MethodSpec;
+import com.squareup.javapoet.ParameterizedTypeName;
 import com.squareup.javapoet.TypeName;
 import com.squareup.javapoet.TypeSpec;
+import com.squareup.javapoet.WildcardTypeName;
+import java.lang.annotation.Annotation;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import javax.annotation.processing.AbstractProcessor;
 import javax.annotation.processing.Filer;
@@ -45,10 +53,12 @@ public class Processor extends AbstractProcessor {
 	private Filer filer;
 	private Messager messager;
 	private ArrayList<Element> generatedForClasses;
+	private ArrayList<FoundPath> foundUrlPaths;
 
 	@Override public Set<String> getSupportedAnnotationTypes() {
 		return new HashSet<String>() {{
 			add(BuildIntent.class.getCanonicalName());
+			add(BuildIntentUrl.class.getCanonicalName());
 		}};
 	}
 
@@ -64,25 +74,34 @@ public class Processor extends AbstractProcessor {
 		filer = processingEnv.getFiler();
 		messager = processingEnv.getMessager();
 		generatedForClasses = new ArrayList<>();
+		foundUrlPaths = new ArrayList<>();
 	}
 
 	@Override public boolean process(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv) {
 		Set<? extends Element> set = roundEnv.getElementsAnnotatedWith(BuildIntent.class);
+		Set<? extends Element> set2 = roundEnv.getElementsAnnotatedWith(BuildIntentUrl.class);
 
 		try {
 			// generate one class for easy navigation
 			if (!set.isEmpty()) {
-				JavaFile navigatorFile = JavaFile.builder("be.trikke.intentbuilder", getNavigatorSpec(set)).build();
+				JavaFile navigatorFile = JavaFile.builder("be.trikke.intentbuilder", getNavigatorSpec(set, set2)).build();
 				navigatorFile.writeTo(filer);
 			}
 		} catch (Exception e) {
 			messager.printMessage(Diagnostic.Kind.ERROR, "Can't create navigation class :" + e.toString());
 		}
 
+		processSet(set, BuildIntent.class);
+		processSet(set2, BuildIntentUrl.class);
+
+		return true;
+	}
+
+	private boolean processSet(Set<? extends Element> set, Class<? extends Annotation> annotation) {
 		for (Element annotatedElement : set) {
 			// Make sure element is a field or a method declaration
 			if (!annotatedElement.getKind().isClass()) {
-				error(annotatedElement, "Only classes can be annotated with @%s", BuildIntent.class.getSimpleName());
+				error(annotatedElement, "Only classes can be annotated with @%s", annotation.getSimpleName());
 				return true;
 			}
 			// generate separate builders
@@ -95,8 +114,7 @@ public class Processor extends AbstractProcessor {
 				error(annotatedElement, "Could not create intent builder for %s: %s", annotatedElement.getSimpleName(), e.getMessage());
 			}
 		}
-
-		return true;
+		return false;
 	}
 
 	private void error(Element e, String msg, Object... args) {
@@ -149,66 +167,143 @@ public class Processor extends AbstractProcessor {
 		return ret;
 	}
 
-	private TypeSpec getNavigatorSpec(Set<? extends Element> generated) {
-		TypeSpec.Builder builder = TypeSpec.classBuilder("Flow").addModifiers(Modifier.PUBLIC, Modifier.FINAL);
-		for (Element element : generated) {
-			boolean isActivity = isElementInstanceOfActivity(element);
-			boolean isService = isElementInstanceOfService(element);
-			boolean isBroadcastreceiver = isElementInstanceOfBroadcastReceiver(element);
-			String gotoKeyword = isActivity ? "goto" : "get";
-			String launchKeyword;
-			if (isActivity) {
-				launchKeyword = "launch";
-			} else if (isService) {
-				launchKeyword = "start";
-			} else {
-				launchKeyword = "send";
+	private TypeSpec getNavigatorSpec(Set<? extends Element>... generated) {
+		TypeSpec.Builder builder = TypeSpec.classBuilder("Navigate").addModifiers(Modifier.PUBLIC, Modifier.FINAL);
+		for (Set<? extends Element> set : generated) {
+			for (Element element : set) {
+				boolean isActivity = isElementInstanceOfActivity(element);
+				boolean isService = isElementInstanceOfService(element);
+				boolean isBroadcastreceiver = isElementInstanceOfBroadcastReceiver(element);
+				String gotoKeyword = isActivity ? "goto" : "get";
+				String launchKeyword;
+				if (isActivity) {
+					launchKeyword = "launch";
+				} else if (isService) {
+					launchKeyword = "start";
+				} else {
+					launchKeyword = "send";
+				}
+
+				List<Element> required = new ArrayList<>();
+				List<Element> optional = new ArrayList<>();
+
+				getAnnotatedFields(element, required, optional);
+
+				String name = String.format("%sIntent", element.getSimpleName());
+				ClassName className = ClassName.get(getPackageName(element), name);
+
+				Map<String, String> paths = new HashMap<>();
+				paths.put(element.getSimpleName().toString(), null);
+
+				if (element.getAnnotation(BuildIntentUrl.class) != null) {
+					UrlPath[] value = element.getAnnotation(BuildIntentUrl.class).value();
+					paths = new HashMap<>(value.length);
+					for (UrlPath path : value) {
+						foundUrlPaths.add(new FoundPath(path.name(), path.url(), element));
+						paths.put(path.name().substring(0, 1).toUpperCase() + path.name().substring(1).toLowerCase(), path.url());
+					}
+				}
+				for (Map.Entry<String, String> entry : paths.entrySet()) {
+					String methodName = entry.getKey();
+
+					MethodSpec.Builder gotoMethod = MethodSpec.methodBuilder(gotoKeyword + methodName);
+					MethodSpec.Builder launchMethod = MethodSpec.methodBuilder(launchKeyword + methodName)
+					                                            .addParameter(Context.class, "context")
+					                                            .addModifiers(Modifier.PUBLIC, Modifier.STATIC);
+
+					MethodSpec.Builder launchWithActivityForResultMethod = MethodSpec.methodBuilder("launch" + methodName + "ForResult")
+					                                                                 .addParameter(Activity.class, "activity")
+					                                                                 .addParameter(int.class, "requestCode");
+					MethodSpec.Builder launchWithFragmentForResultMethod = MethodSpec.methodBuilder("launch" + methodName + "ForResult")
+					                                                                 .addParameter(ClassName.get("android.support.v4.app", "Fragment"),
+							                                                                 "fragment").addParameter(int.class, "requestCode");
+					StringBuilder launchParams = new StringBuilder();
+					for (Element e : required) {
+						String paramName = getParamName(e);
+						gotoMethod.addParameter(TypeName.get(e.asType()), paramName);
+						launchMethod.addParameter(TypeName.get(e.asType()), paramName);
+						launchWithActivityForResultMethod.addParameter(TypeName.get(e.asType()), paramName);
+						launchWithFragmentForResultMethod.addParameter(TypeName.get(e.asType()), paramName);
+						if (launchParams.length() > 0) launchParams.append(", ");
+						launchParams.append(paramName);
+					}
+					if (entry.getValue() != null) {
+						launchParams.append(", PATH_" + entry.getKey().toUpperCase());
+					}
+
+					gotoMethod.addModifiers(Modifier.PUBLIC, Modifier.STATIC)
+					          .addStatement("return new $L($L)", name, launchParams.toString())
+					          .returns(className);
+					launchMethod.addStatement("new $L($L)." + launchKeyword + "(context)", name, launchParams.toString());
+					launchWithActivityForResultMethod.addModifiers(Modifier.PUBLIC, Modifier.STATIC)
+					                                 .addStatement("new $L($L).launchForResult(activity,requestCode)", name, launchParams.toString());
+					launchWithFragmentForResultMethod.addModifiers(Modifier.PUBLIC, Modifier.STATIC)
+					                                 .addStatement("new $L($L).launchForResult(fragment,requestCode)", name, launchParams.toString());
+
+					builder.addMethod(gotoMethod.build());
+					if (isActivity || isService || isBroadcastreceiver) {
+						builder.addMethod(launchMethod.build());
+					}
+					if (isActivity) {
+						builder.addMethod(launchWithActivityForResultMethod.build());
+						builder.addMethod(launchWithFragmentForResultMethod.build());
+					}
+				}
 			}
 
-			List<Element> required = new ArrayList<>();
-			List<Element> optional = new ArrayList<>();
-
-			getAnnotatedFields(element, required, optional);
-
-			final String name = String.format("%sIntent", element.getSimpleName());
-			ClassName className = ClassName.get(getPackageName(element), name);
-			MethodSpec.Builder gotoMethod = MethodSpec.methodBuilder(gotoKeyword + element.getSimpleName());
-			MethodSpec.Builder launchMethod = MethodSpec.methodBuilder(launchKeyword + element.getSimpleName())
-			                                            .addParameter(Context.class, "context")
-			                                            .addModifiers(Modifier.PUBLIC, Modifier.STATIC);
-
-			MethodSpec.Builder launchWithActivityForResultMethod = MethodSpec.methodBuilder("launch" + element.getSimpleName() + "ForResult")
-			                                                                 .addParameter(Activity.class, "activity")
-			                                                                 .addParameter(int.class, "requestCode");
-			MethodSpec.Builder launchWithFragmentForResultMethod = MethodSpec.methodBuilder("launch" + element.getSimpleName() + "ForResult")
-			                                                                 .addParameter(ClassName.get("android.support.v4.app", "Fragment"), "fragment")
-			                                                                 .addParameter(int.class, "requestCode");
-			StringBuilder launchParams = new StringBuilder();
-			for (Element e : required) {
-				String paramName = getParamName(e);
-				gotoMethod.addParameter(TypeName.get(e.asType()), paramName);
-				launchMethod.addParameter(TypeName.get(e.asType()), paramName);
-				launchWithActivityForResultMethod.addParameter(TypeName.get(e.asType()), paramName);
-				launchWithFragmentForResultMethod.addParameter(TypeName.get(e.asType()), paramName);
-				if (launchParams.length() > 0) launchParams.append(',');
-				launchParams.append(paramName);
-			}
-			gotoMethod.addModifiers(Modifier.PUBLIC, Modifier.STATIC).addStatement("return new $L($L)", name, launchParams.toString()).returns(className);
-			launchMethod.addStatement("new $L($L)." + launchKeyword + "(context)", name, launchParams.toString());
-			launchWithActivityForResultMethod.addModifiers(Modifier.PUBLIC, Modifier.STATIC)
-			                                 .addStatement("new $L($L).launchForResult(activity,requestCode)", name, launchParams.toString());
-			launchWithFragmentForResultMethod.addModifiers(Modifier.PUBLIC, Modifier.STATIC)
-			                                 .addStatement("new $L($L).launchForResult(fragment,requestCode)", name, launchParams.toString());
-			builder.addMethod(gotoMethod.build());
-			if (isActivity || isService || isBroadcastreceiver) {
-				builder.addMethod(launchMethod.build());
-			}
-			if (isActivity) {
-				builder.addMethod(launchWithActivityForResultMethod.build());
-				builder.addMethod(launchWithFragmentForResultMethod.build());
+			for (FoundPath path : foundUrlPaths) {
+				FieldSpec pathMethod = FieldSpec.builder(String.class, "PATH_" + path.getName().toUpperCase())
+				                                .initializer("\"" + path.getPath() + "\"")
+				                                .addModifiers(Modifier.PUBLIC, Modifier.STATIC, Modifier.FINAL)
+				                                .build();
+				builder.addField(pathMethod);
 			}
 		}
 
+		if (!foundUrlPaths.isEmpty()) {
+			builder.addField(Router.class, "router", Modifier.PRIVATE, Modifier.STATIC);
+			CodeBlock.Builder staticInitializer = CodeBlock.builder();
+			staticInitializer.addStatement("router = new Router()");
+			for (FoundPath path : foundUrlPaths) {
+				staticInitializer.addStatement("router.route($N, $N)", "PATH_" + path.getName().toUpperCase(),
+						String.format("%sIntent", path.getElement().getSimpleName()) + ".getTarget()");
+			}
+
+			builder.addStaticBlock(staticInitializer.build());
+
+			MethodSpec.Builder gotoUrlMethod = MethodSpec.methodBuilder("gotoUrl");
+			gotoUrlMethod.addModifiers(Modifier.PUBLIC, Modifier.STATIC)
+			             .addParameter(Context.class, "context")
+			             .addParameter(String.class, "url")
+			             .addStatement("return router.getIntent($L,$L)", "context", "url")
+			             .returns(Intent.class);
+
+			builder.addMethod(gotoUrlMethod.build());
+
+			MethodSpec.Builder openUrlMethod = MethodSpec.methodBuilder("launchUrl");
+			openUrlMethod.addModifiers(Modifier.PUBLIC, Modifier.STATIC)
+			             .addParameter(Context.class, "context")
+			             .addParameter(String.class, "url")
+			             .addStatement("router.call($L,$L)", "context", "url");
+
+			builder.addMethod(openUrlMethod.build());
+
+			MethodSpec.Builder openUrlWithFlagsMethod = MethodSpec.methodBuilder("launchUrl");
+			openUrlWithFlagsMethod.addModifiers(Modifier.PUBLIC, Modifier.STATIC)
+			                      .addParameter(Context.class, "context")
+			                      .addParameter(String.class, "url")
+			                      .addParameter(Integer.class, "flags")
+			                      .addStatement("router.call($L,$L,$L)", "context", "url", "flags");
+
+			builder.addMethod(openUrlWithFlagsMethod.build());
+
+			MethodSpec.Builder consumeRouteMethod = MethodSpec.methodBuilder("consumeCurrentRoute");
+			consumeRouteMethod.addModifiers(Modifier.PUBLIC, Modifier.STATIC)
+			                  .addParameter(Activity.class, "activity")
+			                  .addStatement("activity.getIntent().removeExtra(\"route\")");
+
+			builder.addMethod(consumeRouteMethod.build());
+		}
 		return builder.build();
 	}
 
@@ -230,10 +325,22 @@ public class Processor extends AbstractProcessor {
 		builder.addField(Intent.class, "intent", Modifier.PRIVATE);
 		MethodSpec.Builder constructor = MethodSpec.constructorBuilder().addModifiers(Modifier.PUBLIC);
 		constructor.addStatement("intent = new Intent()");
-		for (Element e : required) {
-			String paramName = getParamName(e);
-			constructor.addParameter(TypeName.get(e.asType()), paramName);
-			constructor.addStatement("intent.putExtra($S, $N)", paramName, paramName);
+		if (annotatedElement.getAnnotation(BuildIntentUrl.class) != null) {
+			// constructor with required params and url path
+			for (Element e : required) {
+				String paramName = getParamName(e);
+				constructor.addParameter(TypeName.get(e.asType()), paramName);
+				constructor.addStatement("intent.putExtra($S, $N)", paramName, paramName);
+			}
+			constructor.addParameter(String.class, "route");
+			constructor.addStatement("intent.putExtra($S, $N)", "route", "route");
+		} else {
+			// constructor with required params
+			for (Element e : required) {
+				String paramName = getParamName(e);
+				constructor.addParameter(TypeName.get(e.asType()), paramName);
+				constructor.addStatement("intent.putExtra($S, $N)", paramName, paramName);
+			}
 		}
 		builder.addMethod(constructor.build());
 
@@ -291,7 +398,6 @@ public class Processor extends AbstractProcessor {
 		}
 		//public Intent putExtra(String name, boolean value)
 		MethodSpec.Builder putExtraMethod;
-
 		for (TypeName type : PrimitiveDefaults.getAll()) {
 			putExtraMethod = MethodSpec.methodBuilder("putExtra")
 			                           .addModifiers(Modifier.PUBLIC)
@@ -302,6 +408,15 @@ public class Processor extends AbstractProcessor {
 			                           .returns(ClassName.get(getPackageName(annotatedElement), name));
 			builder.addMethod(putExtraMethod.build());
 		}
+		// add also one for String,String
+		putExtraMethod = MethodSpec.methodBuilder("putExtra")
+		                           .addModifiers(Modifier.PUBLIC)
+		                           .addParameter(String.class, "name")
+		                           .addParameter(String.class, "value")
+		                           .addStatement("intent.putExtra(name, value)")
+		                           .addStatement("return this")
+		                           .returns(ClassName.get(getPackageName(annotatedElement), name));
+		builder.addMethod(putExtraMethod.build());
 
 		MethodSpec.Builder getExtrasMethod =
 				MethodSpec.methodBuilder("getExtras").addModifiers(Modifier.PUBLIC).returns(Bundle.class).addStatement("return intent.getExtras()");
@@ -346,7 +461,8 @@ public class Processor extends AbstractProcessor {
 			                                                                 .addParameter(ClassName.get("android.support.v4.app", "Fragment"), "fragment")
 			                                                                 .addParameter(int.class, "requestCode")
 			                                                                 .addStatement("intent.setClass(fragment.getActivity(), $T.class)",
-					                                                                 TypeName.get(annotatedElement.asType())).addStatement("intent.putExtra(\"requestcode\", requestCode)")
+					                                                                 TypeName.get(annotatedElement.asType()))
+			                                                                 .addStatement("intent.putExtra(\"requestcode\", requestCode)")
 			                                                                 .addStatement("fragment.startActivityForResult(intent, requestCode)");
 			builder.addMethod(launchForResultWithFragmentMethod.build());
 
@@ -387,6 +503,16 @@ public class Processor extends AbstractProcessor {
 			}
 		}
 		builder.addMethod(injectMethod.build());
+
+		ClassName className = ClassName.get(getPackageName(annotatedElement), annotatedElement.getSimpleName().toString());
+		TypeName wildcard = WildcardTypeName.subtypeOf(className);
+
+		TypeName classOfAny = ParameterizedTypeName.get(ClassName.get(Class.class), wildcard);
+		MethodSpec.Builder targetGetterMethod = MethodSpec.methodBuilder("getTarget")
+		                                                  .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
+		                                                  .returns(classOfAny)
+		                                                  .addStatement("return " + className + ".class");
+		builder.addMethod(targetGetterMethod.build());
 
 		return builder.build();
 	}
