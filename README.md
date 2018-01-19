@@ -15,8 +15,8 @@ buildscript {
 apply plugin: 'com.neenbedankt.android-apt'
 
 dependencies {
-    compile 'be.trikke:intentbuilder-api:1.2.0'
-    apt 'be.trikke:intentbuilder-compiler:1.2.0'
+    compile 'be.trikke:intentbuilder-api:1.2.1'
+    apt 'be.trikke:intentbuilder-compiler:1.2.1'
 }
 ```
 
