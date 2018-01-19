@@ -16,7 +16,6 @@ import com.squareup.javapoet.TypeSpec;
 import com.squareup.javapoet.WildcardTypeName;
 import java.lang.annotation.Annotation;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -199,8 +198,9 @@ public class Processor extends AbstractProcessor {
 					UrlPath[] value = element.getAnnotation(BuildIntentUrl.class).value();
 					paths = new HashMap<>(value.length);
 					for (UrlPath path : value) {
-						foundUrlPaths.add(new FoundPath(path.name(), path.url(), element));
-						paths.put(path.name().substring(0, 1).toUpperCase() + path.name().substring(1).toLowerCase(), path.url());
+						String pathName = cleanUpName(path.name());
+						foundUrlPaths.add(new FoundPath(pathName, path.url(), element));
+						paths.put(pathName, path.url());
 					}
 				}
 				for (Map.Entry<String, String> entry : paths.entrySet()) {
@@ -228,7 +228,10 @@ public class Processor extends AbstractProcessor {
 						launchParams.append(paramName);
 					}
 					if (entry.getValue() != null) {
-						launchParams.append(", PATH_" + entry.getKey().toUpperCase());
+						if (launchParams.length() > 0) {
+							launchParams.append(", ");
+						}
+						launchParams.append("PATH_" + entry.getKey().toUpperCase());
 					}
 
 					gotoMethod.addModifiers(Modifier.PUBLIC, Modifier.STATIC)
@@ -297,12 +300,20 @@ public class Processor extends AbstractProcessor {
 
 			builder.addMethod(openUrlWithFlagsMethod.build());
 
-			MethodSpec.Builder consumeRouteMethod = MethodSpec.methodBuilder("consumeCurrentRoute");
-			consumeRouteMethod.addModifiers(Modifier.PUBLIC, Modifier.STATIC)
-			                  .addParameter(Activity.class, "activity")
-			                  .addStatement("activity.getIntent().removeExtra(\"route\")");
+			MethodSpec.Builder consumeMethod = MethodSpec.methodBuilder("consumeUrl");
+			consumeMethod.addModifiers(Modifier.PUBLIC, Modifier.STATIC)
+			             .addParameter(Activity.class, "activity")
+			             .addParameter(String.class, "url")
+			             .beginControlFlow("if(activity.getIntent().hasExtra(\"route\"))")
+			             .beginControlFlow("if(activity.getIntent().getStringExtra(\"route\").equalsIgnoreCase(url))")
+			             .addStatement("activity.getIntent().removeExtra(\"route\")")
+			             .addStatement("return true")
+			             .endControlFlow()
+			             .endControlFlow()
+			             .addStatement("return false")
+			             .returns(TypeName.BOOLEAN);
 
-			builder.addMethod(consumeRouteMethod.build());
+			builder.addMethod(consumeMethod.build());
 		}
 		return builder.build();
 	}
@@ -553,5 +564,16 @@ public class Processor extends AbstractProcessor {
 			}
 		}
 		return false;
+	}
+
+	private String cleanUpName(String phrase) {
+		phrase = phrase.replaceAll("-", "_");
+		phrase = phrase.replaceAll(" ", "_");
+		phrase = phrase.toLowerCase();
+		phrase = phrase.substring(0, 1).toUpperCase() + phrase.substring(1);
+		while (phrase.contains("_")) {
+			phrase = phrase.replaceFirst("_[a-zA-Z0-9]", String.valueOf(Character.toUpperCase(phrase.charAt(phrase.indexOf("_") + 1))));
+		}
+		return phrase;
 	}
 }

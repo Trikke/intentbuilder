@@ -10,8 +10,8 @@ import be.trikke.intentbuilder.ExtraOptional;
 import be.trikke.intentbuilder.UrlPath;
 
 @BuildIntentUrl(value = {
-		@UrlPath(name = "DETAILS",url = "test://parameters?requiredString={string}&requiredBoolean={boolean}"),
-		@UrlPath(name = "MORE",url = "test://more"),
+		@UrlPath(name = "PATH DETAILS_AND SOME-ELSE",url = "test://parameters?requiredString={string}&requiredBoolean={boolean}"),
+		@UrlPath(name = "PATH_MORE",url = "test://more"),
 		@UrlPath(name = "STUFF",url = "test://stuff"),
 })
 public class DetailActivity extends AppCompatActivity {

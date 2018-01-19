@@ -17,7 +17,7 @@ public class MainActivity extends AppCompatActivity {
 		Button goToDetail = (Button) findViewById(R.id.go_to_detail);
 		goToDetail.setOnClickListener(new View.OnClickListener() {
 			@Override public void onClick(View v) {
-				Navigate.gotoDetails("i'm a required String", true)
+				Navigate.gotoPathDetailsAndSomeElse("i'm a required String", true)
 				        .optionalString("i'm just optional")
 				        .coolName("Trikke")
 				        .optionalBoolean(true)
